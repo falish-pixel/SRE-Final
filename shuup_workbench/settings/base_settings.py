@@ -5,7 +5,6 @@
 # This source code is licensed under the OSL-3.0 license found in the
 # LICENSE file in the root directory of this source tree.
 import os
-
 from shuup.addons import add_enabled_addons
 
 BASE_DIR = os.getenv("SHUUP_WORKBENCH_BASE_DIR") or (os.path.dirname(os.path.dirname(__file__)))
@@ -30,6 +29,7 @@ INSTALLED_APPS = add_enabled_addons(
         "django.contrib.messages",
         "django.contrib.sessions",
         "django.contrib.staticfiles",
+        "django_prometheus",  # Добавляем django-prometheus
         # external apps that needs to be loaded before Shuup
         "easy_thumbnails",
         # shuup themes
@@ -78,6 +78,7 @@ INSTALLED_APPS = add_enabled_addons(
 )
 
 MIDDLEWARE = [
+    "django_prometheus.middleware.PrometheusBeforeMiddleware",  # Добавляем для метрик
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -90,6 +91,7 @@ MIDDLEWARE = [
     "shuup.front.middleware.ShuupFrontMiddleware",
     "shuup.xtheme.middleware.XthemeMiddleware",
     "shuup.admin.middleware.ShuupAdminMiddleware",
+    "django_prometheus.middleware.PrometheusAfterMiddleware",  # Добавляем для метрик
 ]
 
 ROOT_URLCONF = "shuup_workbench.urls"
@@ -97,7 +99,7 @@ WSGI_APPLICATION = "shuup_workbench.wsgi.application"
 
 _sqlite_folder = os.path.join(BASE_DIR, "../.sqlite")
 if not os.path.exists(_sqlite_folder):
-    os.mkdir(_sqlite_folder)
+    os.makedirs(_sqlite_folder, exist_ok=True)  # Исправляем на makedirs для безопасности
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
@@ -112,7 +114,7 @@ USE_L10N = True
 USE_TZ = True
 STATIC_URL = "/static/"
 LOGIN_REDIRECT_URL = "/"
-SOUTH_TESTS_MIGRATE = False  # Makes tests that much faster.
+SOUTH_TESTS_MIGRATE = False
 DEFAULT_FROM_EMAIL = "no-reply@example.com"
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
@@ -130,11 +132,6 @@ LOGGING = {
 }
 
 LANGUAGES = [
-    # List all supported languages here.
-    #
-    # Should be a subset of django.conf.global_settings.LANGUAGES.  Use
-    # same spelling for the language names for utilizing the language
-    # name translations from Django.
     ("en", "English"),
     ("fi", "Finnish"),
     ("it", "Italian"),
@@ -187,11 +184,8 @@ TEMPLATES = [
     },
 ]
 
-# set login url here because of `login_required` decorators
 LOGIN_URL = "/login/"
-
 SESSION_SERIALIZER = "django.contrib.sessions.serializers.PickleSerializer"
-
 SHUUP_PRICING_MODULE = "customer_group_pricing"
 
 SHUUP_SETUP_WIZARD_PANE_SPEC = [
@@ -203,14 +197,12 @@ SHUUP_SETUP_WIZARD_PANE_SPEC = [
     "shuup.admin.modules.system.views.TelemetryWizardPane",
 ]
 
-
 SHUUP_ERROR_PAGE_HANDLERS_SPEC = [
     "shuup.admin.error_handlers:AdminPageErrorHandler",
     "shuup.front.error_handlers:FrontPageErrorHandler",
 ]
 
 SHUUP_SIMPLE_SEARCH_LIMIT = 150
-
 
 def configure(setup):
     setup.commit(globals())

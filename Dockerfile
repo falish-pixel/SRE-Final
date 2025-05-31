@@ -1,38 +1,44 @@
-FROM node:12.21.0-buster-slim as base
+FROM python:3.7-slim-buster AS base
 
-# This image is NOT made for production use.
 LABEL maintainer="Eero Ruohola <eero.ruohola@shuup.com>"
 
-RUN apt-get update \
-    && apt-get --assume-yes install \
-        libpangocairo-1.0-0 \
-        python3 \
+# Установка зависимостей
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
         python3-dev \
-        python3-pil \
-        python3-pip \
-    && rm -rf /var/lib/apt/lists/ /var/cache/apt/
+        libpq-dev \
+        libffi-dev \
+        libssl-dev \
+        libpangocairo-1.0-0 \
+        gcc \
+        curl && \
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
+    rm -rf /var/lib/apt/lists/*
 
-# These invalidate the cache every single time but
-# there really isn't any other obvious way to do this.
-COPY . /app
+ENV PATH="/root/.cargo/bin:${PATH}"
+
 WORKDIR /app
+COPY . /app
 
-# The dev compose file sets this to 1 to support development and editing the source code.
-# The default value of 0 just installs the demo for running.
-ARG editable=0
+# Установка Python-зависимостей
+RUN pip3 install --no-cache-dir \
+    markupsafe==2.0.1 \
+    django-prometheus \
+    shuup \
+    psycopg2-binary
 
-RUN if [ "$editable" -eq 1 ]; then pip3 install -r requirements-tests.txt && python3 setup.py build_resources; else pip3 install shuup; fi
-
+# Миграции и инициализация
 RUN python3 -m shuup_workbench migrate
 RUN python3 -m shuup_workbench shuup_init
 
-RUN echo '\
-from django.contrib.auth import get_user_model\n\
+# Создание суперпользователя через временный скрипт
+RUN echo "from django.contrib.auth import get_user_model\n\
 from django.db import IntegrityError\n\
 try:\n\
-    get_user_model().objects.create_superuser("admin", "admin@admin.com", "admin")\n\
+    get_user_model().objects.create_superuser('admin', 'admin@admin.com', 'admin')\n\
 except IntegrityError:\n\
-    pass\n'\
-| python3 -m shuup_workbench shell
+    pass" > create_superuser.py && \
+    python3 -m shuup_workbench shell < create_superuser.py && \
+    rm create_superuser.py
 
 CMD ["python3", "-m", "shuup_workbench", "runserver", "0.0.0.0:8000"]
