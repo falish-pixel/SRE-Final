@@ -1,0 +1,43 @@
+name: CI/CD Pipeline for Shuup
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-test-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies for Pillow
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libjpeg-dev zlib1g-dev libfreetype6-dev libtiff-dev libwebp-dev
+
+      - name: Install python dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel pytest
+
+      - name: Run tests
+        run: |
+          pytest shuup-tests/
+
+      - name: Build Docker image
+        run: |
+          echo "Building Docker image for Shuup project..."
+          docker build -t shuup-sample:latest .
+
+      - name: Deploy step (simulated)
+        run: |
+          echo "Running docker container locally"
+          echo "No remote server available, skipping actual deployment."
